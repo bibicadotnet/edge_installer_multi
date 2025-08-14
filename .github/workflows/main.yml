@@ -1,116 +1,50 @@
 name: Check Update and Upload Releases
+
 on:
   push:
     branches:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 */1 * * *'
+    - cron: '0 * * * *' # chạy mỗi giờ
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        channel: [stable, beta, dev, canary]
-      fail-fast: false
     steps:
-    - uses: actions/checkout@v5
-      with:
-        fetch-depth: 0
-        
-    - name: Check Update
-      run: python fetch.py
-      
-    - name: Download Latest ${{ matrix.channel }} Releases
-      run: |
-        python -c "
-import json
-import requests
-import os
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-def download_file(url, filename):
-    print(f'Downloading {filename}...')
-    r = requests.get(url, stream=True)
-    with open(filename, 'wb') as f:
-        for chunk in r.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
+      - name: Set branches
+        run: |
+          echo "channels=stable beta dev canary" >> $GITHUB_ENV
 
-# Get version and download for current channel
-with open('data.json', 'r') as f:
-    data = json.load(f)
+      - name: Check and Process each channel
+        run: |
+          for channel in $channels; do
+            echo "==== Checking $channel ===="
+            
+            # Lấy version mới nhất cho channel (python fetch.py trả về JSON hoặc text)
+            version=$(python fetch.py --channel $channel)
+            echo "Found version: $version"
 
-key = 'msedge-${{ matrix.channel }}-win-x64'
-if key in data:
-    version = data[key]['version']
-    url = data[key]['下载链接']
-    filename = data[key]['文件名']
-    
-    # Set environment variables
-    github_env = os.getenv('GITHUB_ENV')
-    if github_env:
-        with open(github_env, 'a') as env_file:
-            env_file.write(f'latest_version={version}\n')
-            env_file.write(f'channel=${{ matrix.channel }}\n')
-    
-    download_file(url, filename)
-else:
-    print('No data found for ${{ matrix.channel }} channel')
-"
-        
-    - name: Check for EXE Files
-      id: check_files
-      run: |
-        if find . -name "*.exe" -print -quit | grep -q .; then
-            echo "exe_exists=true" >> $GITHUB_ENV
-        else
-          echo "exe_exists=false" >> $GITHUB_ENV
-        fi
-        
-    - name: Check if Tag Exists
-      id: check_tag
-      run: |
-        TAG_NAME="${{ matrix.channel }}-x64-${{ env.latest_version }}"
-        if git rev-parse "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
-          echo "tag_exists=true" >> $GITHUB_ENV
-        else
-          echo "tag_exists=false" >> $GITHUB_ENV
-        fi
-        
-    - name: Create ZIP Archive
-      if: env.exe_exists == 'true' && env.tag_exists == 'false'
-      run: |
-        ZIP_NAME="edge-${{ matrix.channel }}-x64-${{ env.latest_version }}.zip"
-        zip "$ZIP_NAME" *.exe
-        echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
-        
-    - name: Commit and Push Changes
-      env:
-        TZ: America/New_York
-      run: |
-        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
-        git add data.json readme.md
-        git commit -m ":pencil: Auto update Edge ${{ matrix.channel }} ${{ env.latest_version }} at $(date +"%Y-%m-%d %H:%M")" || echo "No changes to commit"
-        git push origin main
-        
-    - name: Upload Release
-      if: env.exe_exists == 'true' && env.tag_exists == 'false'
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ matrix.channel }}-x64-${{ env.latest_version }}
-        name: ${{ matrix.channel }}-x64-${{ env.latest_version }}
-        files: ${{ env.zip_name }}
-        body: |
-          Microsoft Edge ${{ matrix.channel }} version ${{ env.latest_version }}
-          
-          **Channel:** ${{ matrix.channel }}
-          **Version:** ${{ env.latest_version }}
-          **Architecture:** x64
-          
-    - name: Clean up
-      if: always()
-      run: |
-        rm -f *.exe
-        rm -f *.zip
+            tag_name="${channel}-x64-${version}"
+            zip_name="edge-${channel}-x64-${version}.zip"
+
+            if git rev-parse "refs/tags/${tag_name}" >/dev/null 2>&1; then
+              echo "Tag $tag_name exists, skip..."
+              continue
+            fi
+
+            # Download file
+            python download.py --channel $channel --arch x64 --output "$zip_name"
+
+            # Upload release
+            gh release create "$tag_name" "$zip_name" \
+              --title "$tag_name" \
+              --notes "Auto release for $channel channel version $version"
+
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
