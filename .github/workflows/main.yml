@@ -6,7 +6,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *' # chạy mỗi giờ
+    - cron: '0 * * * *'
 
 jobs:
   build:
@@ -16,35 +16,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set branches
+      - name: Fetch all channel info
+        run: python fetch.py
+
+      - name: Process all channels
         run: |
-          echo "channels=stable beta dev canary" >> $GITHUB_ENV
+          channels=("stable" "beta" "dev" "canary")
+          arch="x64"
 
-      - name: Check and Process each channel
-        run: |
-          for channel in $channels; do
-            echo "==== Checking $channel ===="
-            
-            # Lấy version mới nhất cho channel (python fetch.py trả về JSON hoặc text)
-            version=$(python fetch.py --channel $channel)
-            echo "Found version: $version"
+          for channel in "${channels[@]}"; do
+            key="msedge-${channel}-win-${arch}"
+            version=$(jq -r --arg k "$key" '.[$k].version' data.json)
+            tag="${channel}-${arch}-${version}"
+            zip="edge-${channel}-${arch}-${version}.zip"
 
-            tag_name="${channel}-x64-${version}"
-            zip_name="edge-${channel}-x64-${version}.zip"
+            echo "==== $channel ===="
+            echo "Version: $version"
 
-            if git rev-parse "refs/tags/${tag_name}" >/dev/null 2>&1; then
-              echo "Tag $tag_name exists, skip..."
+            if git rev-parse "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "Tag $tag exists, skipping..."
               continue
             fi
 
-            # Download file
-            python download.py --channel $channel --arch x64 --output "$zip_name"
+            url=$(jq -r --arg k "$key" '.[$k]["下载链接"]' data.json)
+            curl -L "$url" -o "$zip"
 
-            # Upload release
-            gh release create "$tag_name" "$zip_name" \
-              --title "$tag_name" \
-              --notes "Auto release for $channel channel version $version"
-
+            gh release create "$tag" "$zip" \
+              --title "$tag" \
+              --notes "Auto release for $channel $version"
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
