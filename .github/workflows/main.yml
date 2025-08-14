@@ -26,12 +26,12 @@ import json
 try:
     with open('data.json', 'r') as f:
         data = json.load(f)
-        print(data.get('msedge-${CHANNEL}-win-x64', {}).get('version', '0.0.0.0'))
+        print(data.get('msedge-stable-win-x64', {}).get('version', '0.0.0.0'))
 except:
     print('0.0.0.0')
 ")
         
-        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/${CHANNEL}-x64-${VERSION}" >/dev/null 2>&1; then
+        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/stable-x64-${VERSION}" >/dev/null 2>&1; then
           echo "STABLE_VERSION=$VERSION" >> $GITHUB_ENV
           echo "STABLE_HAS_UPDATE=true" >> $GITHUB_ENV
         else
@@ -46,12 +46,12 @@ import json
 try:
     with open('data.json', 'r') as f:
         data = json.load(f)
-        print(data.get('msedge-${CHANNEL}-win-x64', {}).get('version', '0.0.0.0'))
+        print(data.get('msedge-beta-win-x64', {}).get('version', '0.0.0.0'))
 except:
     print('0.0.0.0')
 ")
         
-        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/${CHANNEL}-x64-${VERSION}" >/dev/null 2>&1; then
+        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/beta-x64-${VERSION}" >/dev/null 2>&1; then
           echo "BETA_VERSION=$VERSION" >> $GITHUB_ENV
           echo "BETA_HAS_UPDATE=true" >> $GITHUB_ENV
         else
@@ -66,12 +66,12 @@ import json
 try:
     with open('data.json', 'r') as f:
         data = json.load(f)
-        print(data.get('msedge-${CHANNEL}-win-x64', {}).get('version', '0.0.0.0'))
+        print(data.get('msedge-dev-win-x64', {}).get('version', '0.0.0.0'))
 except:
     print('0.0.0.0')
 ")
         
-        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/${CHANNEL}-x64-${VERSION}" >/dev/null 2>&1; then
+        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/dev-x64-${VERSION}" >/dev/null 2>&1; then
           echo "DEV_VERSION=$VERSION" >> $GITHUB_ENV
           echo "DEV_HAS_UPDATE=true" >> $GITHUB_ENV
         else
@@ -86,12 +86,12 @@ import json
 try:
     with open('data.json', 'r') as f:
         data = json.load(f)
-        print(data.get('msedge-${CHANNEL}-win-x64', {}).get('version', '0.0.0.0'))
+        print(data.get('msedge-canary-win-x64', {}).get('version', '0.0.0.0'))
 except:
     print('0.0.0.0')
 ")
         
-        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/${CHANNEL}-x64-${VERSION}" >/dev/null 2>&1; then
+        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/canary-x64-${VERSION}" >/dev/null 2>&1; then
           echo "CANARY_VERSION=$VERSION" >> $GITHUB_ENV
           echo "CANARY_HAS_UPDATE=true" >> $GITHUB_ENV
         else
@@ -104,7 +104,6 @@ except:
         CHANNEL="stable"
         VERSION="${{ env.STABLE_VERSION }}"
         
-        # Download x64 file only
         python -c "
 import json
 import requests
@@ -120,15 +119,14 @@ def download_file(url, filename):
 with open('data.json', 'r') as f:
     data = json.load(f)
     
-key = f'msedge-${CHANNEL}-win-x64'
+key = 'msedge-stable-win-x64'
 if key in data:
     url = data[key]['下载链接']
     filename = data[key]['文件名']
     download_file(url, filename)
 "
         
-        # Create ZIP with x64 file only
-        zip edge-${CHANNEL}-x64-${VERSION}.zip *.exe
+        zip edge-stable-x64-${VERSION}.zip *.exe
         rm -f *.exe
         
     - name: Download and Create Beta Release
@@ -137,7 +135,6 @@ if key in data:
         CHANNEL="beta"
         VERSION="${{ env.BETA_VERSION }}"
         
-        # Download x64 file only
         python -c "
 import json
 import requests
@@ -153,15 +150,14 @@ def download_file(url, filename):
 with open('data.json', 'r') as f:
     data = json.load(f)
     
-key = f'msedge-${CHANNEL}-win-x64'
+key = 'msedge-beta-win-x64'
 if key in data:
     url = data[key]['下载链接']
     filename = data[key]['文件名']
     download_file(url, filename)
 "
         
-        # Create ZIP with x64 file only
-        zip edge-${CHANNEL}-x64-${VERSION}.zip *.exe
+        zip edge-beta-x64-${VERSION}.zip *.exe
         rm -f *.exe
         
     - name: Download and Create Dev Release
@@ -170,7 +166,6 @@ if key in data:
         CHANNEL="dev"
         VERSION="${{ env.DEV_VERSION }}"
         
-        # Download x64 file only
         python -c "
 import json
 import requests
@@ -186,15 +181,14 @@ def download_file(url, filename):
 with open('data.json', 'r') as f:
     data = json.load(f)
     
-key = f'msedge-${CHANNEL}-win-x64'
+key = 'msedge-dev-win-x64'
 if key in data:
     url = data[key]['下载链接']
     filename = data[key]['文件名']
     download_file(url, filename)
 "
         
-        # Create ZIP with x64 file only
-        zip edge-${CHANNEL}-x64-${VERSION}.zip *.exe
+        zip edge-dev-x64-${VERSION}.zip *.exe
         rm -f *.exe
         
     - name: Download and Create Canary Release
@@ -203,7 +197,6 @@ if key in data:
         CHANNEL="canary"
         VERSION="${{ env.CANARY_VERSION }}"
         
-        # Download x64 file only
         python -c "
 import json
 import requests
@@ -219,15 +212,14 @@ def download_file(url, filename):
 with open('data.json', 'r') as f:
     data = json.load(f)
     
-key = f'msedge-${CHANNEL}-win-x64'
+key = 'msedge-canary-win-x64'
 if key in data:
     url = data[key]['下载链接']
     filename = data[key]['文件名']
     download_file(url, filename)
 "
         
-        # Create ZIP with x64 file only
-        zip edge-${CHANNEL}-x64-${VERSION}.zip *.exe
+        zip edge-canary-x64-${VERSION}.zip *.exe
         rm -f *.exe
         
     - name: Commit and Push Changes
