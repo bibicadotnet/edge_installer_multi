@@ -184,17 +184,17 @@ def decode_sha256_base64():
 
 
 def save_md():
-    index_url = "https://github.com/Bush2021/edge_installer?tab=readme-ov-file#"
+    index_url = "https://github.com/bibicadotnet/edge_installer_multi?tab=readme-ov-file#"
     with open("readme.md", "w") as f:
-        f.write(f"# Microsoft Edge 离线安装包下载链接（请使用 7-Zip 解压）\n")
+        f.write("# Microsoft Edge Offline Installer Download Links (Use 7-Zip to Extract)\n")
         f.write(
-            f"稳定版存档：<https://github.com/Bush2021/edge_installer/releases>\n\n"
+            "Stable Release Archive: <https://github.com/Bush2021/edge_installer/releases>\n\n"
         )
-        f.write(f"## 注意\n")
-        f.write(f"* Microsoft 直链会过期，请及时保存。\n")
-        f.write(f"* 下载文件名可能是乱码，有需要的话请自行重命名。\n")
+        f.write("## Notes\n")
+        f.write("* Microsoft direct download links may expire. Please save them in time.\n")
+        f.write("* The downloaded file name may appear garbled. Rename it if necessary.\n")
         f.write("\n")
-        f.write(f"## 目录\n")
+        f.write("## Table of Contents\n")
         for name in results.keys():
             title = name[7:].replace("win-", "").replace("-", " ")
             link = index_url + title.replace(" ", "-")
@@ -202,12 +202,12 @@ def save_md():
         f.write("\n")
         for name, info in results.items():
             f.write(f'## {name[7:].replace("win-", "").replace("-", " ")}\n')
-            f.write(f'**最新版本**：{info.get("version", "")}  \n')
-            f.write(f'**文件大小**：{humansize(info.get("字节大小", 0))}  \n')
-            f.write(f'**文件名**：{info.get("文件名", "")}  \n')
-            f.write(f'**校验值（Sha256）**：{info.get("Sha256", "")}  \n')
+            f.write(f'**Latest Version**: {info.get("version", "")}  \n')
+            f.write(f'**File Size**: {humansize(info.get("字节大小", 0))}  \n')
+            f.write(f'**File Name**: {info.get("文件名", "")}  \n')
+            f.write(f'**Checksum (Sha256)**: {info.get("Sha256", "")}  \n')
             f.write(
-                f'**下载链接**：[{info.get("下载链接", "")}]({info.get("下载链接", "")})  \n'
+                f'**Download Link**: [{info.get("下载链接", "")}]({info.get("下载链接", "")})  \n'
             )
             f.write("\n")
 
@@ -228,3 +228,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
