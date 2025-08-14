@@ -25,51 +25,53 @@ jobs:
       - name: Fetch all channel info
         run: python fetch.py
 
-      - name: Process all channels and architectures
+      - name: Process all channels
         run: |
           channels=("stable" "beta" "dev" "canary")
           archs=("x86" "x64" "ARM64")
 
           for channel in "${channels[@]}"; do
+            # Lấy version từ x64 (coi như bản đại diện)
+            key="msedge-${channel}-win-x64"
+            version=$(jq -r --arg k "$key" '.[$k].version' data.json)
+
+            if [ -z "$version" ] || [ "$version" = "null" ]; then
+              echo "No version found for $channel, skipping..."
+              continue
+            fi
+
+            tag="${channel}-${version}"
+
+            echo "==== $channel ===="
+            echo "Version: $version"
+            echo "Tag: $tag"
+
+            # Nếu tag đã tồn tại → bỏ qua
+            if git rev-parse "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "Tag $tag exists, skipping..."
+              continue
+            fi
+
+            files=()
             for arch in "${archs[@]}"; do
               key="msedge-${channel}-win-${arch}"
-              version=$(jq -r --arg k "$key" '.[$k].version' data.json)
-
-              # Bỏ qua nếu không có version
-              if [ -z "$version" ] || [ "$version" = "null" ]; then
-                echo "No version found for $channel $arch, skipping..."
-                continue
-              fi
-
-              tag="${channel}-${arch}-${version}"
-              zip="edge-${channel}-${arch}-${version}.zip"
-
-              echo "==== $channel $arch ===="
-              echo "Version: $version"
-              echo "Tag: $tag"
-
-              # Nếu tag đã tồn tại thì bỏ qua
-              if git rev-parse "refs/tags/${tag}" >/dev/null 2>&1; then
-                echo "Tag $tag exists, skipping..."
-                continue
-              fi
-
               url=$(jq -r --arg k "$key" '.[$k]["下载链接"]' data.json)
 
-              # Bỏ qua nếu không có link tải
               if [ -z "$url" ] || [ "$url" = "null" ]; then
                 echo "No download URL for $channel $arch, skipping..."
                 continue
               fi
 
-              echo "Downloading $url ..."
+              zip="edge-${channel}-${arch}-${version}.zip"
+              echo "Downloading $arch: $url"
               curl -L --fail "$url" -o "$zip"
-
-              echo "Creating release $tag ..."
-              gh release create "$tag" "$zip" \
-                --title "$tag" \
-                --notes "Auto release for $channel $arch version $version"
+              files+=("$zip")
             done
+
+            echo "Creating release $tag ..."
+            gh release create "$tag" "${files[@]}" \
+              --title "$tag" \
+              --notes "Auto release for $channel version $version"
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
