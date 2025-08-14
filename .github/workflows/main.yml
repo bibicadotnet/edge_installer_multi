@@ -8,105 +8,26 @@ on:
     - cron: '0 */1 * * *'
 
 jobs:
-  check-and-release:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        channel: [stable, beta, dev, canary]
+      fail-fast: false
     steps:
     - uses: actions/checkout@v5
       with:
         fetch-depth: 0
         
-    - name: Check Update for All Channels
+    - name: Check Update
       run: python fetch.py
       
-    - name: Process Stable Channel
+    - name: Download Latest ${{ matrix.channel }} Releases
       run: |
-        CHANNEL="stable"
-        VERSION=$(python -c "
-import json
-try:
-    with open('data.json', 'r') as f:
-        data = json.load(f)
-        print(data.get('msedge-stable-win-x64', {}).get('version', '0.0.0.0'))
-except:
-    print('0.0.0.0')
-")
-        
-        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/stable-x64-${VERSION}" >/dev/null 2>&1; then
-          echo "STABLE_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "STABLE_HAS_UPDATE=true" >> $GITHUB_ENV
-        else
-          echo "STABLE_HAS_UPDATE=false" >> $GITHUB_ENV
-        fi
-        
-    - name: Process Beta Channel
-      run: |
-        CHANNEL="beta"
-        VERSION=$(python -c "
-import json
-try:
-    with open('data.json', 'r') as f:
-        data = json.load(f)
-        print(data.get('msedge-beta-win-x64', {}).get('version', '0.0.0.0'))
-except:
-    print('0.0.0.0')
-")
-        
-        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/beta-x64-${VERSION}" >/dev/null 2>&1; then
-          echo "BETA_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "BETA_HAS_UPDATE=true" >> $GITHUB_ENV
-        else
-          echo "BETA_HAS_UPDATE=false" >> $GITHUB_ENV
-        fi
-        
-    - name: Process Dev Channel
-      run: |
-        CHANNEL="dev"
-        VERSION=$(python -c "
-import json
-try:
-    with open('data.json', 'r') as f:
-        data = json.load(f)
-        print(data.get('msedge-dev-win-x64', {}).get('version', '0.0.0.0'))
-except:
-    print('0.0.0.0')
-")
-        
-        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/dev-x64-${VERSION}" >/dev/null 2>&1; then
-          echo "DEV_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "DEV_HAS_UPDATE=true" >> $GITHUB_ENV
-        else
-          echo "DEV_HAS_UPDATE=false" >> $GITHUB_ENV
-        fi
-        
-    - name: Process Canary Channel
-      run: |
-        CHANNEL="canary"
-        VERSION=$(python -c "
-import json
-try:
-    with open('data.json', 'r') as f:
-        data = json.load(f)
-        print(data.get('msedge-canary-win-x64', {}).get('version', '0.0.0.0'))
-except:
-    print('0.0.0.0')
-")
-        
-        if [ "$VERSION" != "0.0.0.0" ] && ! git rev-parse "refs/tags/canary-x64-${VERSION}" >/dev/null 2>&1; then
-          echo "CANARY_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "CANARY_HAS_UPDATE=true" >> $GITHUB_ENV
-        else
-          echo "CANARY_HAS_UPDATE=false" >> $GITHUB_ENV
-        fi
-        
-    - name: Download and Create Stable Release
-      if: env.STABLE_HAS_UPDATE == 'true'
-      run: |
-        CHANNEL="stable"
-        VERSION="${{ env.STABLE_VERSION }}"
-        
         python -c "
 import json
 import requests
+import os
 
 def download_file(url, filename):
     print(f'Downloading {filename}...')
@@ -116,111 +37,53 @@ def download_file(url, filename):
             if chunk:
                 f.write(chunk)
 
+# Get version and download for current channel
 with open('data.json', 'r') as f:
     data = json.load(f)
-    
-key = 'msedge-stable-win-x64'
+
+key = 'msedge-${{ matrix.channel }}-win-x64'
 if key in data:
+    version = data[key]['version']
     url = data[key]['下载链接']
     filename = data[key]['文件名']
+    
+    # Set environment variables
+    github_env = os.getenv('GITHUB_ENV')
+    if github_env:
+        with open(github_env, 'a') as env_file:
+            env_file.write(f'latest_version={version}\n')
+            env_file.write(f'channel=${{ matrix.channel }}\n')
+    
     download_file(url, filename)
+else:
+    print('No data found for ${{ matrix.channel }} channel')
 "
         
-        zip edge-stable-x64-${VERSION}.zip *.exe
-        rm -f *.exe
-        
-    - name: Download and Create Beta Release
-      if: env.BETA_HAS_UPDATE == 'true'
+    - name: Check for EXE Files
+      id: check_files
       run: |
-        CHANNEL="beta"
-        VERSION="${{ env.BETA_VERSION }}"
+        if find . -name "*.exe" -print -quit | grep -q .; then
+            echo "exe_exists=true" >> $GITHUB_ENV
+        else
+          echo "exe_exists=false" >> $GITHUB_ENV
+        fi
         
-        python -c "
-import json
-import requests
-
-def download_file(url, filename):
-    print(f'Downloading {filename}...')
-    r = requests.get(url, stream=True)
-    with open(filename, 'wb') as f:
-        for chunk in r.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
-
-with open('data.json', 'r') as f:
-    data = json.load(f)
-    
-key = 'msedge-beta-win-x64'
-if key in data:
-    url = data[key]['下载链接']
-    filename = data[key]['文件名']
-    download_file(url, filename)
-"
-        
-        zip edge-beta-x64-${VERSION}.zip *.exe
-        rm -f *.exe
-        
-    - name: Download and Create Dev Release
-      if: env.DEV_HAS_UPDATE == 'true'
+    - name: Check if Tag Exists
+      id: check_tag
       run: |
-        CHANNEL="dev"
-        VERSION="${{ env.DEV_VERSION }}"
+        TAG_NAME="${{ matrix.channel }}-x64-${{ env.latest_version }}"
+        if git rev-parse "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+          echo "tag_exists=true" >> $GITHUB_ENV
+        else
+          echo "tag_exists=false" >> $GITHUB_ENV
+        fi
         
-        python -c "
-import json
-import requests
-
-def download_file(url, filename):
-    print(f'Downloading {filename}...')
-    r = requests.get(url, stream=True)
-    with open(filename, 'wb') as f:
-        for chunk in r.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
-
-with open('data.json', 'r') as f:
-    data = json.load(f)
-    
-key = 'msedge-dev-win-x64'
-if key in data:
-    url = data[key]['下载链接']
-    filename = data[key]['文件名']
-    download_file(url, filename)
-"
-        
-        zip edge-dev-x64-${VERSION}.zip *.exe
-        rm -f *.exe
-        
-    - name: Download and Create Canary Release
-      if: env.CANARY_HAS_UPDATE == 'true'
+    - name: Create ZIP Archive
+      if: env.exe_exists == 'true' && env.tag_exists == 'false'
       run: |
-        CHANNEL="canary"
-        VERSION="${{ env.CANARY_VERSION }}"
-        
-        python -c "
-import json
-import requests
-
-def download_file(url, filename):
-    print(f'Downloading {filename}...')
-    r = requests.get(url, stream=True)
-    with open(filename, 'wb') as f:
-        for chunk in r.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
-
-with open('data.json', 'r') as f:
-    data = json.load(f)
-    
-key = 'msedge-canary-win-x64'
-if key in data:
-    url = data[key]['下载链接']
-    filename = data[key]['文件名']
-    download_file(url, filename)
-"
-        
-        zip edge-canary-x64-${VERSION}.zip *.exe
-        rm -f *.exe
+        ZIP_NAME="edge-${{ matrix.channel }}-x64-${{ env.latest_version }}.zip"
+        zip "$ZIP_NAME" *.exe
+        echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
         
     - name: Commit and Push Changes
       env:
@@ -229,67 +92,25 @@ if key in data:
         git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git add data.json readme.md
-        git commit -m ":pencil: Auto update Edge at $(date +"%Y-%m-%d %H:%M")" || echo "No changes to commit"
+        git commit -m ":pencil: Auto update Edge ${{ matrix.channel }} ${{ env.latest_version }} at $(date +"%Y-%m-%d %H:%M")" || echo "No changes to commit"
         git push origin main
         
-    - name: Upload Stable Release
-      if: env.STABLE_HAS_UPDATE == 'true'
+    - name: Upload Release
+      if: env.exe_exists == 'true' && env.tag_exists == 'false'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: stable-x64-${{ env.STABLE_VERSION }}
-        name: stable-x64-${{ env.STABLE_VERSION }}
-        files: edge-stable-x64-${{ env.STABLE_VERSION }}.zip
+        tag_name: ${{ matrix.channel }}-x64-${{ env.latest_version }}
+        name: ${{ matrix.channel }}-x64-${{ env.latest_version }}
+        files: ${{ env.zip_name }}
         body: |
-          Microsoft Edge Stable version ${{ env.STABLE_VERSION }}
+          Microsoft Edge ${{ matrix.channel }} version ${{ env.latest_version }}
           
-          **Channel:** Stable
-          **Version:** ${{ env.STABLE_VERSION }}
-          **Architecture:** x64
-          
-    - name: Upload Beta Release
-      if: env.BETA_HAS_UPDATE == 'true'
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: beta-x64-${{ env.BETA_VERSION }}
-        name: beta-x64-${{ env.BETA_VERSION }}
-        files: edge-beta-x64-${{ env.BETA_VERSION }}.zip
-        body: |
-          Microsoft Edge Beta version ${{ env.BETA_VERSION }}
-          
-          **Channel:** Beta
-          **Version:** ${{ env.BETA_VERSION }}
-          **Architecture:** x64
-          
-    - name: Upload Dev Release
-      if: env.DEV_HAS_UPDATE == 'true'
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: dev-x64-${{ env.DEV_VERSION }}
-        name: dev-x64-${{ env.DEV_VERSION }}
-        files: edge-dev-x64-${{ env.DEV_VERSION }}.zip
-        body: |
-          Microsoft Edge Dev version ${{ env.DEV_VERSION }}
-          
-          **Channel:** Dev
-          **Version:** ${{ env.DEV_VERSION }}
-          **Architecture:** x64
-          
-    - name: Upload Canary Release
-      if: env.CANARY_HAS_UPDATE == 'true'
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: canary-x64-${{ env.CANARY_VERSION }}
-        name: canary-x64-${{ env.CANARY_VERSION }}
-        files: edge-canary-x64-${{ env.CANARY_VERSION }}.zip
-        body: |
-          Microsoft Edge Canary version ${{ env.CANARY_VERSION }}
-          
-          **Channel:** Canary
-          **Version:** ${{ env.CANARY_VERSION }}
+          **Channel:** ${{ matrix.channel }}
+          **Version:** ${{ env.latest_version }}
           **Architecture:** x64
           
     - name: Clean up
       if: always()
       run: |
-        rm -f *.zip
         rm -f *.exe
+        rm -f *.zip
