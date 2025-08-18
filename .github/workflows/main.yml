@@ -6,7 +6,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'  # chạy mỗi giờ
+    - cron: '*/5 * * * *'  # chạy mỗi 5 phút
 
 permissions:
   contents: write
